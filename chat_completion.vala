@@ -3,6 +3,14 @@ namespace voai {
     public string api_base;
     public string default_model;
 
+    public errordomain OpenAIError {
+        QUOTA_EXCEEDED,
+        RATE_LIMIT_EXCEEDED,
+        INVALID_REQUEST,
+        INVALID_RESPONSE,
+        UNKNOWN
+    }
+
     public void set_api_key(string key) {
         api_key = key;
     }
@@ -60,14 +68,31 @@ namespace voai {
             stop_array.add_string_element(stop_string);
         }
 
+        private void check_error(Json.Object json_obj) throws OpenAIError {
+            if(json_obj.has_member("error")) {
+                // if the error is set, get the error object
+                var error_obj = json_obj.get_object_member("error");
+                // get the message from the error object
+                var error_message = error_obj.get_string_member("message");
+                var error_code = error_obj.get_string_member("code");
+                if(error_code == "insufficient_quota") {
+                    throw new OpenAIError.QUOTA_EXCEEDED(error_message);
+                }
+                else {
+                    throw new OpenAIError.UNKNOWN(error_message);
+                }
+            }
+        }
+
         // sends a blocking request to the OpenAI API and returns a CompletionResponse
-        public CompletionResponse send() {
+        public CompletionResponse send() throws Error, OpenAIError {
             // create json string from the object
             var node = new Json.Node(Json.NodeType.OBJECT);
             node.set_object(json_object);
             var json_string = Json.to_string(node, true);
 
             var session = new Soup.Session();
+            session.set_idle_timeout(60); // one minute timeout
             var message = new Soup.Message("POST", api_base + "/chat/completions");
             message.request_headers.append("Content-Type", "application/json");
             message.request_headers.append("Authorization", "Bearer " + api_key);
@@ -82,21 +107,24 @@ namespace voai {
             parser.load_from_data(response_json);
             var response_node = parser.get_root();
             if(response_node == null) {
-                stdout.printf("Error: Could not parse response json\n");
+                throw new OpenAIError.INVALID_RESPONSE("Could not parse response json.");
             } 
-            if(response_node.get_object() == null) {
-                stdout.printf("Error: Response json is not an object\n");
+            var response_object = response_node.get_object();
+            if(response_object == null) {
+                throw new OpenAIError.INVALID_RESPONSE("Could not parse response json.");
             }
+            check_error(response_object);
             return new CompletionResponse(response_node.get_object());
         }
 
-        public async CompletionResponse send_async() {
+        public async CompletionResponse send_async() throws Error, OpenAIError {
             // create json string from the object
             var node = new Json.Node(Json.NodeType.OBJECT);
             node.set_object(json_object);
             var json_string = Json.to_string(node, true);
 
             var session = new Soup.Session();
+            session.set_idle_timeout(60); // one minute timeout
             var message = new Soup.Message("POST", api_base + "/chat/completions");
             message.request_headers.append("Content-Type", "application/json");
             message.request_headers.append("Authorization", "Bearer " + api_key);
@@ -110,13 +138,14 @@ namespace voai {
             var parser = new Json.Parser();
             parser.load_from_data(response_json);
             var response_node = parser.get_root();
-
             if(response_node == null) {
-                stdout.printf("Error: Could not parse response json\n");
+                throw new OpenAIError.INVALID_RESPONSE("Could not parse response json.");
             } 
-            if(response_node.get_object() == null) {
-                stdout.printf("Error: Response json is not an object\n");
+            var response_object = response_node.get_object();
+            if(response_object == null) {
+                throw new OpenAIError.INVALID_RESPONSE("Could not parse response json.");
             }
+            check_error(response_object);
             return new CompletionResponse(response_node.get_object());
         }
 

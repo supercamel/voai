@@ -109,6 +109,15 @@ namespace voai {
             get { return json_obj.get_string_member("system_fingerprint"); }
         }
 
+        public string get_first() {
+            if(choices.length() > 0) {
+                return choices.nth_data(0).message.content;
+            }
+            else {
+                return "";
+            }
+        }
+
         public List<Choice> choices;
         public Usage usage;
 
