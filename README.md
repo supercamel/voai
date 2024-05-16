@@ -1,4 +1,4 @@
-# A Simple OpenAI Api Client
+# A Fabulous OpenAI Api Client
 
 Written in Vala using libsoup. Used to connect to various AI back ends. 
 
